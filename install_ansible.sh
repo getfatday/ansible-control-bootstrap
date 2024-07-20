@@ -54,17 +54,11 @@ install_on_debian() {
     info "Updating package list..."
     sudo apt-get update
 
-    info "Installing Python3 and pip3..."
-    sudo apt-get install -y python3 python3-pip
+    info "Installing Python3, pip3, and pipx..."
+    sudo apt-get install -y python3 python3-pip pipx
 
-    info "Checking for pipx..."
-    if ! command -v pipx &>/dev/null; then
-        info "pipx not found. Installing pipx..."
-        pip3 install --user pipx
-        python3 -m pipx ensurepath
-    else
-        info "pipx is already installed."
-    fi
+    info "Ensuring pipx binaries are in the PATH..."
+    python3 -m pipx ensurepath
 
     info "Installing Ansible using pipx..."
     pipx install ansible
@@ -75,17 +69,11 @@ install_on_redhat() {
     info "Updating package list..."
     sudo yum update -y
 
-    info "Installing Python3 and pip3..."
-    sudo yum install -y python3 python3-pip
+    info "Installing Python3, pip3, and pipx..."
+    sudo yum install -y python3 python3-pip pipx
 
-    info "Checking for pipx..."
-    if ! command -v pipx &>/dev/null; then
-        info "pipx not found. Installing pipx..."
-        pip3 install --user pipx
-        python3 -m pipx ensurepath
-    else
-        info "pipx is already installed."
-    fi
+    info "Ensuring pipx binaries are in the PATH..."
+    python3 -m pipx ensurepath
 
     info "Installing Ansible using pipx..."
     pipx install ansible
