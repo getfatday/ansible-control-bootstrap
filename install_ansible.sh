@@ -45,7 +45,7 @@ install_on_debian() {
     info "Updating package list..."
     sudo apt-get update
 
-    info "Installing Python3, pip3, and pipx..."
+    info "Installing Python3 and pip3..."
     sudo apt-get install -y python3 python3-pip
 
     info "Installing Ansible using apt..."
@@ -57,11 +57,8 @@ install_on_redhat() {
     info "Updating package list..."
     sudo yum update -y
 
-    info "Installing Python3, pip3, and pipx..."
+    info "Installing Python3 and pip3..."
     sudo yum install -y python3 python3-pip
-
-    info "Ensuring pipx binaries are in the PATH..."
-    python3 -m pipx ensurepath
 
     info "Installing Ansible using apt..."
     sudo apt install ansible -y
