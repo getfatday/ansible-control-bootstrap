@@ -2,60 +2,81 @@
 
 set -e
 
+# Define the info function to echo text in lilac color
+info() {
+    echo -e "\033[1;35m$1\033[0m"
+}
+
 # Function to check and install dependencies on macOS
 install_on_macos() {
-    echo "Checking for Homebrew..."
+    info "Checking for Homebrew..."
     if ! command -v brew &>/dev/null; then
-        echo "Homebrew not found. Installing Homebrew..."
+        info "Homebrew not found. Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     else
-        echo "Homebrew is already installed."
+        info "Homebrew is already installed."
     fi
 
-    echo "Updating Homebrew..."
+    info "Updating Homebrew..."
     brew update
 
-    echo "Installing Ansible..."
-    brew install ansible
+    info "Checking for Python3..."
+    if ! command -v python3 &>/dev/null; then
+        info "Python3 not found. Installing Python3..."
+        brew install python
+    else
+        info "Python3 is already installed."
+    fi
+
+    info "Checking for pip3..."
+    if ! command -v pip3 &>/dev/null; then
+        info "pip3 not found. Installing pip3..."
+        brew install pip3
+    else
+        info "pip3 is already installed."
+    fi
+
+    info "Installing Ansible..."
+    pip3 install ansible
 }
 
 # Function to check and install dependencies on Debian-based Linux
 install_on_debian() {
-    echo "Updating package list..."
+    info "Updating package list..."
     sudo apt-get update
 
-    echo "Installing dependencies..."
-    sudo apt-get install -y software-properties-common
+    info "Installing Python3 and pip3..."
+    sudo apt-get install -y python3 python3-pip
 
-    echo "Adding Ansible PPA..."
-    sudo apt-add-repository --yes --update ppa:ansible/ansible
-
-    echo "Installing Ansible..."
-    sudo apt-get install -y ansible
+    info "Installing Ansible..."
+    pip3 install ansible
 }
 
 # Function to check and install dependencies on RedHat-based Linux
 install_on_redhat() {
-    echo "Installing EPEL repository..."
-    sudo yum install -y epel-release
+    info "Updating package list..."
+    sudo yum update -y
 
-    echo "Installing Ansible..."
-    sudo yum install -y ansible
+    info "Installing Python3 and pip3..."
+    sudo yum install -y python3 python3-pip
+
+    info "Installing Ansible..."
+    pip3 install ansible
 }
 
 # Main script execution
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "Detected macOS."
+    info "Detected macOS."
     install_on_macos
 elif [[ -f /etc/debian_version ]]; then
-    echo "Detected Debian-based Linux."
+    info "Detected Debian-based Linux."
     install_on_debian
 elif [[ -f /etc/redhat-release ]]; then
-    echo "Detected RedHat-based Linux."
+    info "Detected RedHat-based Linux."
     install_on_redhat
 else
-    echo "Unsupported OS type: $OSTYPE"
+    info "Unsupported OS type: $OSTYPE"
     exit 1
 fi
 
-echo "Ansible installation complete!"
+info "Ansible installation complete!"
