@@ -36,8 +36,17 @@ install_on_macos() {
         info "pip3 is already installed."
     fi
 
-    info "Installing Ansible..."
-    pip3 install ansible
+    info "Checking for pipx..."
+    if ! command -v pipx &>/dev/null; then
+        info "pipx not found. Installing pipx..."
+        pip3 install --user pipx
+        python3 -m pipx ensurepath
+    else
+        info "pipx is already installed."
+    fi
+
+    info "Installing Ansible using pipx..."
+    pipx install ansible
 }
 
 # Function to check and install dependencies on Debian-based Linux
@@ -48,8 +57,17 @@ install_on_debian() {
     info "Installing Python3 and pip3..."
     sudo apt-get install -y python3 python3-pip
 
-    info "Installing Ansible..."
-    pip3 install ansible
+    info "Checking for pipx..."
+    if ! command -v pipx &>/dev/null; then
+        info "pipx not found. Installing pipx..."
+        pip3 install --user pipx
+        python3 -m pipx ensurepath
+    else
+        info "pipx is already installed."
+    fi
+
+    info "Installing Ansible using pipx..."
+    pipx install ansible
 }
 
 # Function to check and install dependencies on RedHat-based Linux
@@ -60,8 +78,17 @@ install_on_redhat() {
     info "Installing Python3 and pip3..."
     sudo yum install -y python3 python3-pip
 
-    info "Installing Ansible..."
-    pip3 install ansible
+    info "Checking for pipx..."
+    if ! command -v pipx &>/dev/null; then
+        info "pipx not found. Installing pipx..."
+        pip3 install --user pipx
+        python3 -m pipx ensurepath
+    else
+        info "pipx is already installed."
+    fi
+
+    info "Installing Ansible using pipx..."
+    pipx install ansible
 }
 
 # Main script execution
@@ -79,4 +106,4 @@ else
     exit 1
 fi
 
-info "Ansible installation complete!"
+info "Ansible installation complete! To use Ansible, ensure that pipx binaries are in your PATH."
