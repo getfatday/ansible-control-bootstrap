@@ -49,7 +49,7 @@ install_on_debian() {
     sudo apt-get install -y python3 python3-pip
 
     info "Installing Ansible using apt..."
-    apt install ansible -y
+    sudo apt install ansible -y
 }
 
 # Function to check and install dependencies on RedHat-based Linux
@@ -64,7 +64,7 @@ install_on_redhat() {
     python3 -m pipx ensurepath
 
     info "Installing Ansible using apt..."
-    apt install ansible -y
+    sudo apt install ansible -y
 }
 
 # Main script execution
