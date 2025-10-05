@@ -31,13 +31,13 @@ install_on_macos() {
     info "Checking for pip3..."
     if ! command -v pip3 &>/dev/null; then
         info "pip3 not found. Installing pip3..."
-        brew install pip3
+        brew install python
     else
         info "pip3 is already installed."
     fi
 
-    info "Installing Ansible using apt..."
-    apt install ansible -y
+    info "Installing Ansible using pip3..."
+    pip3 install ansible
 }
 
 # Function to check and install dependencies on Debian-based Linux
@@ -60,8 +60,8 @@ install_on_redhat() {
     info "Installing Python3 and pip3..."
     sudo yum install -y python3 python3-pip
 
-    info "Installing Ansible using apt..."
-    sudo apt install ansible -y
+    info "Installing Ansible using yum..."
+    sudo yum install ansible -y
 }
 
 # Main script execution
