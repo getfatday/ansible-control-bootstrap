@@ -7,6 +7,16 @@ info() {
     echo -e "\033[1;35m$1\033[0m"
 }
 
+# Define the success function to echo text in green color
+success() {
+    echo -e "\033[1;32m$1\033[0m"
+}
+
+# Define the warning function to echo text in yellow color
+warning() {
+    echo -e "\033[1;33m$1\033[0m"
+}
+
 # Function to check and install dependencies on macOS
 install_on_macos() {
     info "Checking for Homebrew..."
@@ -38,6 +48,39 @@ install_on_macos() {
 
     info "Installing Ansible using pip3..."
     pip3 install ansible
+
+    # ansible-role-dotmodules specific setup
+    info "Setting up ansible-role-dotmodules dependencies..."
+    
+    # Install GNU Stow if missing
+    if ! command -v stow &>/dev/null; then
+        info "Installing GNU Stow..."
+        brew install stow
+    else
+        info "GNU Stow is already installed."
+    fi
+
+    # Install required Ansible collections
+    info "Installing required Ansible collections..."
+    ansible-galaxy collection install geerlingguy.mac
+
+    # Accept Xcode license if needed (for MAS apps)
+    if command -v xcodebuild &>/dev/null; then
+        if ! xcodebuild -license check &>/dev/null; then
+            warning "Xcode license needs to be accepted for Mac App Store apps..."
+            info "Accepting Xcode license..."
+            sudo xcodebuild -license accept
+        else
+            info "Xcode license already accepted."
+        fi
+    fi
+
+    # Set up ARM64 Homebrew path detection
+    if [[ $(uname -m) == "arm64" ]] || [[ $(arch) == "arm64" ]]; then
+        info "Detected ARM64 architecture - setting up Homebrew paths..."
+        export MAS_PATH="/opt/homebrew/bin/mas"
+        success "ARM64 Homebrew paths configured."
+    fi
 }
 
 # Function to check and install dependencies on Debian-based Linux
@@ -79,4 +122,41 @@ else
     exit 1
 fi
 
-info "Ansible installation complete! To use Ansible, ensure that pipx binaries are in your PATH."
+# Function to create a sample ansible-role-dotmodules playbook
+create_sample_playbook() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        info "Creating sample ansible-role-dotmodules playbook..."
+        
+        cat > sample-dotfiles.yml << 'EOF'
+---
+# Sample ansible-role-dotmodules playbook
+- name: Deploy dotfiles using ansible-role-dotmodules
+  hosts: localhost
+  vars:
+    dotmodules:
+      repo: "file://{{ playbook_dir }}/../modules"
+      dest: "{{ ansible_env.HOME }}/.dotmodules"
+      install:
+        - shell
+        - git
+        - editor
+    # Configure MAS path for ARM64 Macs
+    mas_path: "{{ '/opt/homebrew/bin/mas' if ansible_architecture == 'arm64' else '/usr/local/bin/mas' }}"
+  roles:
+    - ansible-role-dotmodules
+EOF
+
+        success "Sample playbook created: sample-dotfiles.yml"
+        info "To use: ansible-playbook -i localhost, sample-dotfiles.yml"
+    fi
+}
+
+# Create sample playbook
+create_sample_playbook
+
+success "Ansible installation complete!"
+info "Next steps:"
+info "1. Install the ansible-role-dotmodules role:"
+info "   ansible-galaxy install git+https://github.com/getfatday/ansible-role-dotmodules.git"
+info "2. Create your dotfiles modules in a 'modules/' directory"
+info "3. Run your playbook: ansible-playbook -i localhost, sample-dotfiles.yml"
