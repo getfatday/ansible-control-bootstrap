@@ -17,14 +17,63 @@ warning() {
     echo -e "\033[1;33m$1\033[0m"
 }
 
+# Function to detect architecture and Homebrew installation mode
+detect_homebrew_architecture() {
+    local arch_type=$(arch)
+    local uname_m=$(uname -m)
+    
+    info "Detecting system architecture..."
+    info "arch command: $arch_type"
+    info "uname -m: $uname_m"
+    
+    # Check if running under Rosetta 2 (x86_64 emulation on ARM64)
+    if [[ "$arch_type" == "i386" ]] && [[ "$uname_m" == "x86_64" ]]; then
+        info "Detected Rosetta 2 emulation (x86_64 on ARM64)"
+        echo "x86_64"
+    elif [[ "$arch_type" == "arm64" ]] && [[ "$uname_m" == "arm64" ]]; then
+        info "Detected native ARM64"
+        echo "arm64"
+    elif [[ "$uname_m" == "x86_64" ]]; then
+        info "Detected Intel x86_64"
+        echo "x86_64"
+    else
+        warning "Unknown architecture: arch=$arch_type, uname=$uname_m"
+        echo "x86_64"  # Default to x86_64 for compatibility
+    fi
+}
+
 # Function to check and install dependencies on macOS
 install_on_macos() {
+    local homebrew_arch=$(detect_homebrew_architecture)
+    local homebrew_prefix="/usr/local"
+    local mas_path="/usr/local/bin/mas"
+    
+    if [[ "$homebrew_arch" == "arm64" ]]; then
+        homebrew_prefix="/opt/homebrew"
+        mas_path="/opt/homebrew/bin/mas"
+        info "Using ARM64 Homebrew installation..."
+    else
+        info "Using x86_64 Homebrew installation..."
+    fi
+    
     info "Checking for Homebrew..."
     if ! command -v brew &>/dev/null; then
-        info "Homebrew not found. Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        info "Homebrew not found. Installing Homebrew for $homebrew_arch..."
+        if [[ "$homebrew_arch" == "arm64" ]]; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        else
+            # Force x86_64 installation even on ARM64 Macs (Rosetta 2)
+            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        fi
     else
         info "Homebrew is already installed."
+        # Verify the installation is correct for the detected architecture
+        local current_prefix=$(brew --prefix)
+        if [[ "$current_prefix" != "$homebrew_prefix" ]]; then
+            warning "Homebrew architecture mismatch detected!"
+            warning "Expected: $homebrew_prefix, Found: $current_prefix"
+            warning "This may cause issues. Consider reinstalling Homebrew for the correct architecture."
+        fi
     fi
 
     info "Updating Homebrew..."
@@ -75,12 +124,11 @@ install_on_macos() {
         fi
     fi
 
-    # Set up ARM64 Homebrew path detection
-    if [[ $(uname -m) == "arm64" ]] || [[ $(arch) == "arm64" ]]; then
-        info "Detected ARM64 architecture - setting up Homebrew paths..."
-        export MAS_PATH="/opt/homebrew/bin/mas"
-        success "ARM64 Homebrew paths configured."
-    fi
+    # Set up Homebrew path detection based on architecture
+    info "Configuring Homebrew paths for $homebrew_arch architecture..."
+    export MAS_PATH="$mas_path"
+    export HOMEBREW_PREFIX="$homebrew_prefix"
+    success "Homebrew paths configured: MAS_PATH=$mas_path, HOMEBREW_PREFIX=$homebrew_prefix"
 }
 
 # Function to check and install dependencies on Debian-based Linux
@@ -127,7 +175,15 @@ create_sample_playbook() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         info "Creating sample ansible-role-dotmodules playbook..."
         
-        cat > sample-dotfiles.yml << 'EOF'
+        # Detect current architecture for the sample
+        local current_arch=$(detect_homebrew_architecture)
+        local mas_path="/usr/local/bin/mas"
+        
+        if [[ "$current_arch" == "arm64" ]]; then
+            mas_path="/opt/homebrew/bin/mas"
+        fi
+        
+        cat > sample-dotfiles.yml << EOF
 ---
 # Sample ansible-role-dotmodules playbook
 - name: Deploy dotfiles using ansible-role-dotmodules
@@ -140,13 +196,15 @@ create_sample_playbook() {
         - shell
         - git
         - editor
-    # Configure MAS path for ARM64 Macs
-    mas_path: "{{ '/opt/homebrew/bin/mas' if ansible_architecture == 'arm64' else '/usr/local/bin/mas' }}"
+    # Configure MAS path for detected architecture ($current_arch)
+    mas_path: "$mas_path"
   roles:
     - ansible-role-dotmodules
 EOF
 
         success "Sample playbook created: sample-dotfiles.yml"
+        info "Architecture detected: $current_arch"
+        info "MAS path configured: $mas_path"
         info "To use: ansible-playbook -i localhost, sample-dotfiles.yml"
     fi
 }
