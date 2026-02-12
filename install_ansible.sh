@@ -17,27 +17,40 @@ warning() {
     echo -e "\033[1;33m$1\033[0m"
 }
 
+# Fix zsh directory permissions that cause brew doctor warnings
+fix_zsh_permissions() {
+    local zsh_dirs=("/usr/local/share/zsh" "/usr/local/share/zsh/site-functions")
+    for dir in "${zsh_dirs[@]}"; do
+        if [[ -d "$dir" ]] && [[ ! -w "$dir" ]]; then
+            info "Fixing permissions on $dir..."
+            sudo chmod g-w "$dir"
+            sudo chown "$(whoami)" "$dir"
+        fi
+    done
+}
+
 # Function to detect architecture and Homebrew installation mode
 detect_homebrew_architecture() {
     local arch_type=$(arch)
     local uname_m=$(uname -m)
-    
-    info "Detecting system architecture..."
-    info "arch command: $arch_type"
-    info "uname -m: $uname_m"
-    
+
+    # All info/warning output goes to stderr to keep stdout clean for the caller
+    info "Detecting system architecture..." >&2
+    info "arch command: $arch_type" >&2
+    info "uname -m: $uname_m" >&2
+
     # Check if running under Rosetta 2 (x86_64 emulation on ARM64)
     if [[ "$arch_type" == "i386" ]] && [[ "$uname_m" == "x86_64" ]]; then
-        info "Detected Rosetta 2 emulation (x86_64 on ARM64)"
+        info "Detected Rosetta 2 emulation (x86_64 on ARM64)" >&2
         echo "x86_64"
     elif [[ "$arch_type" == "arm64" ]] && [[ "$uname_m" == "arm64" ]]; then
-        info "Detected native ARM64"
+        info "Detected native ARM64" >&2
         echo "arm64"
     elif [[ "$uname_m" == "x86_64" ]]; then
-        info "Detected Intel x86_64"
+        info "Detected Intel x86_64" >&2
         echo "x86_64"
     else
-        warning "Unknown architecture: arch=$arch_type, uname=$uname_m"
+        warning "Unknown architecture: arch=$arch_type, uname=$uname_m" >&2
         echo "x86_64"  # Default to x86_64 for compatibility
     fi
 }
@@ -57,27 +70,42 @@ install_on_macos() {
     fi
     
     info "Checking for Homebrew..."
-    if ! command -v brew &>/dev/null; then
-        info "Homebrew not found. Installing Homebrew for $homebrew_arch..."
-        if [[ "$homebrew_arch" == "arm64" ]]; then
+    if [[ "$homebrew_arch" == "arm64" ]]; then
+        # On ARM64, ensure we have the native Homebrew at /opt/homebrew
+        if [[ ! -x "/opt/homebrew/bin/brew" ]]; then
+            info "ARM64 Homebrew not found at /opt/homebrew. Installing..."
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         else
-            # Force x86_64 installation even on ARM64 Macs (Rosetta 2)
-            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            info "ARM64 Homebrew is already installed at /opt/homebrew."
+        fi
+
+        # Ensure ARM64 brew is first in PATH for the rest of this script
+        export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+
+        # Warn about leftover Intel Homebrew
+        if [[ -x "/usr/local/bin/brew" ]]; then
+            warning "⚠ Leftover Intel Homebrew detected at /usr/local/bin/brew"
+            warning "This is common after Migration Assistant from an Intel Mac."
+            warning "ARM64 Homebrew at /opt/homebrew will be used for this install."
+            warning "To remove the Intel Homebrew later, run:"
+            warning "  /usr/local/bin/brew list  # review what's installed"
+            warning "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)\" -- --path=/usr/local"
         fi
     else
-        info "Homebrew is already installed."
-        # Verify the installation is correct for the detected architecture
-        local current_prefix=$(brew --prefix)
-        if [[ "$current_prefix" != "$homebrew_prefix" ]]; then
-            warning "Homebrew architecture mismatch detected!"
-            warning "Expected: $homebrew_prefix, Found: $current_prefix"
-            warning "This may cause issues. Consider reinstalling Homebrew for the correct architecture."
+        if ! command -v brew &>/dev/null; then
+            info "Homebrew not found. Installing Homebrew for $homebrew_arch..."
+            # Force x86_64 installation even on ARM64 Macs (Rosetta 2)
+            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        else
+            info "Homebrew is already installed."
         fi
     fi
 
     info "Updating Homebrew..."
     brew update
+
+    # Fix zsh directory permissions that Homebrew operations can leave misconfigured
+    fix_zsh_permissions
 
     info "Checking for Python3..."
     if ! command -v python3 &>/dev/null; then
