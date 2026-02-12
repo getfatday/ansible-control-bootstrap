@@ -56,24 +56,8 @@ install_on_macos() {
     # Fix zsh directory permissions that Homebrew operations can leave misconfigured
     fix_zsh_permissions
 
-    info "Checking for Python3..."
-    if ! command -v python3 &>/dev/null; then
-        info "Python3 not found. Installing Python3..."
-        brew install python
-    else
-        info "Python3 is already installed."
-    fi
-
-    info "Checking for pip3..."
-    if ! command -v pip3 &>/dev/null; then
-        info "pip3 not found. Installing pip3..."
-        brew install python
-    else
-        info "pip3 is already installed."
-    fi
-
-    info "Installing Ansible using pip3..."
-    pip3 install ansible
+    info "Installing Ansible..."
+    brew install ansible
 
     # ansible-role-dotmodules specific setup
     info "Setting up ansible-role-dotmodules dependencies..."
