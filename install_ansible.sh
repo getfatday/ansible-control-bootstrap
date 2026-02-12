@@ -73,6 +73,7 @@ install_on_macos() {
     # Install required Ansible collections
     info "Installing required Ansible collections..."
     ansible-galaxy collection install geerlingguy.mac
+    ansible-galaxy install git+https://github.com/getfatday/ansible-role-dotmodules.git
 
     # Accept Xcode license if needed (for MAS apps)
     # Only attempt if full Xcode is installed (not just Command Line Tools)
