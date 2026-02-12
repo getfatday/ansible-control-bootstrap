@@ -167,12 +167,44 @@ EOF
     fi
 }
 
-# Create sample playbook
+# Clone and deploy dotfiles if DOTFILES_REPO is set or use default
+deploy_dotfiles() {
+    local dotfiles_repo="${DOTFILES_REPO:-https://github.com/getfatday/dotfiles.git}"
+    local dotfiles_dir="${DOTFILES_DIR:-$HOME/src/dotfiles}"
+
+    if [[ -d "$dotfiles_dir" ]]; then
+        info "Dotfiles already cloned at $dotfiles_dir — pulling latest..."
+        git -C "$dotfiles_dir" pull
+    else
+        info "Cloning dotfiles from $dotfiles_repo..."
+        mkdir -p "$(dirname "$dotfiles_dir")"
+        git clone "$dotfiles_repo" "$dotfiles_dir"
+    fi
+
+    # Install requirements if requirements.yml exists
+    if [[ -f "$dotfiles_dir/requirements.yml" ]]; then
+        info "Installing requirements from requirements.yml..."
+        ansible-galaxy install -r "$dotfiles_dir/requirements.yml"
+    fi
+
+    # Run the playbook
+    if [[ -f "$dotfiles_dir/playbooks/deploy.yml" ]]; then
+        info "Running dotfiles deployment..."
+        ansible-playbook "$dotfiles_dir/playbooks/deploy.yml" \
+            -i "$dotfiles_dir/playbooks/inventory" \
+            --ask-become-pass --diff
+    else
+        warning "No playbooks/deploy.yml found in $dotfiles_dir"
+        info "Create a playbook or run manually."
+    fi
+}
+
+# Create sample playbook (for reference)
 create_sample_playbook
 
 success "Ansible installation complete!"
-info "Next steps:"
-info "1. Install the ansible-role-dotmodules role:"
-info "   ansible-galaxy install git+https://github.com/getfatday/ansible-role-dotmodules.git"
-info "2. Create your dotfiles modules in a 'modules/' directory"
-info "3. Run your playbook: ansible-playbook -i localhost, sample-dotfiles.yml"
+
+# Deploy dotfiles
+deploy_dotfiles
+
+success "Bootstrap complete!"
