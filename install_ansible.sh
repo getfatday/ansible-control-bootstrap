@@ -75,7 +75,8 @@ install_on_macos() {
     ansible-galaxy collection install geerlingguy.mac
 
     # Accept Xcode license if needed (for MAS apps)
-    if command -v xcodebuild &>/dev/null; then
+    # Only attempt if full Xcode is installed (not just Command Line Tools)
+    if [[ -d "/Applications/Xcode.app" ]] && command -v xcodebuild &>/dev/null; then
         if ! xcodebuild -license check &>/dev/null; then
             warning "Xcode license needs to be accepted for Mac App Store apps..."
             info "Accepting Xcode license..."
@@ -83,6 +84,9 @@ install_on_macos() {
         else
             info "Xcode license already accepted."
         fi
+    else
+        info "Xcode not installed (Command Line Tools only) — skipping license check."
+        info "Install Xcode from the App Store if you need Mac App Store app management."
     fi
 
     # Export paths for downstream use
