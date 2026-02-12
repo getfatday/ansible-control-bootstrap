@@ -29,77 +29,26 @@ fix_zsh_permissions() {
     done
 }
 
-# Function to detect architecture and Homebrew installation mode
-detect_homebrew_architecture() {
-    local arch_type=$(arch)
-    local uname_m=$(uname -m)
-
-    # All info/warning output goes to stderr to keep stdout clean for the caller
-    info "Detecting system architecture..." >&2
-    info "arch command: $arch_type" >&2
-    info "uname -m: $uname_m" >&2
-
-    # Check if running under Rosetta 2 (x86_64 emulation on ARM64)
-    if [[ "$arch_type" == "i386" ]] && [[ "$uname_m" == "x86_64" ]]; then
-        info "Detected Rosetta 2 emulation (x86_64 on ARM64)" >&2
-        echo "x86_64"
-    elif [[ "$arch_type" == "arm64" ]] && [[ "$uname_m" == "arm64" ]]; then
-        info "Detected native ARM64" >&2
-        echo "arm64"
-    elif [[ "$uname_m" == "x86_64" ]]; then
-        info "Detected Intel x86_64" >&2
-        echo "x86_64"
-    else
-        warning "Unknown architecture: arch=$arch_type, uname=$uname_m" >&2
-        echo "x86_64"  # Default to x86_64 for compatibility
-    fi
-}
-
 # Function to check and install dependencies on macOS
 install_on_macos() {
-    local homebrew_arch=$(detect_homebrew_architecture)
-    local homebrew_prefix="/usr/local"
-    local mas_path="/usr/local/bin/mas"
-    
-    if [[ "$homebrew_arch" == "arm64" ]]; then
-        homebrew_prefix="/opt/homebrew"
-        mas_path="/opt/homebrew/bin/mas"
-        info "Using ARM64 Homebrew installation..."
-    else
-        info "Using x86_64 Homebrew installation..."
-    fi
-    
     info "Checking for Homebrew..."
-    if [[ "$homebrew_arch" == "arm64" ]]; then
-        # On ARM64, ensure we have the native Homebrew at /opt/homebrew
-        if [[ ! -x "/opt/homebrew/bin/brew" ]]; then
-            info "ARM64 Homebrew not found at /opt/homebrew. Installing..."
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        else
-            info "ARM64 Homebrew is already installed at /opt/homebrew."
-        fi
-
-        # Ensure ARM64 brew is first in PATH for the rest of this script
-        export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-
-        # Warn about leftover Intel Homebrew
-        if [[ -x "/usr/local/bin/brew" ]]; then
-            warning "⚠ Leftover Intel Homebrew detected at /usr/local/bin/brew"
-            warning "This is common after Migration Assistant from an Intel Mac."
-            warning "ARM64 Homebrew at /opt/homebrew will be used for this install."
-            warning "To remove the Intel Homebrew later, run:"
-            warning "  /usr/local/bin/brew list  # review what's installed"
-            warning "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)\" -- --path=/usr/local"
+    if ! command -v brew &>/dev/null; then
+        info "Homebrew not found. Installing..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Homebrew installer prints eval instructions; ensure brew is in PATH
+        if [[ -x "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -x "/usr/local/bin/brew" ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
         fi
     else
-        if ! command -v brew &>/dev/null; then
-            info "Homebrew not found. Installing Homebrew for $homebrew_arch..."
-            # Force x86_64 installation even on ARM64 Macs (Rosetta 2)
-            arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        else
-            info "Homebrew is already installed."
-        fi
+        info "Homebrew is already installed."
     fi
+
+    # Derive paths from the actual Homebrew installation
+    local homebrew_prefix=$(brew --prefix)
+    local mas_path="$homebrew_prefix/bin/mas"
+    info "Homebrew prefix: $homebrew_prefix"
 
     info "Updating Homebrew..."
     brew update
@@ -152,8 +101,7 @@ install_on_macos() {
         fi
     fi
 
-    # Set up Homebrew path detection based on architecture
-    info "Configuring Homebrew paths for $homebrew_arch architecture..."
+    # Export paths for downstream use
     export MAS_PATH="$mas_path"
     export HOMEBREW_PREFIX="$homebrew_prefix"
     success "Homebrew paths configured: MAS_PATH=$mas_path, HOMEBREW_PREFIX=$homebrew_prefix"
@@ -202,15 +150,10 @@ fi
 create_sample_playbook() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         info "Creating sample ansible-role-dotmodules playbook..."
-        
-        # Detect current architecture for the sample
-        local current_arch=$(detect_homebrew_architecture)
-        local mas_path="/usr/local/bin/mas"
-        
-        if [[ "$current_arch" == "arm64" ]]; then
-            mas_path="/opt/homebrew/bin/mas"
-        fi
-        
+
+        local homebrew_prefix=$(brew --prefix)
+        local mas_path="$homebrew_prefix/bin/mas"
+
         cat > sample-dotfiles.yml << EOF
 ---
 # Sample ansible-role-dotmodules playbook
@@ -224,14 +167,12 @@ create_sample_playbook() {
         - shell
         - git
         - editor
-    # Configure MAS path for detected architecture ($current_arch)
     mas_path: "$mas_path"
   roles:
     - ansible-role-dotmodules
 EOF
 
         success "Sample playbook created: sample-dotfiles.yml"
-        info "Architecture detected: $current_arch"
         info "MAS path configured: $mas_path"
         info "To use: ansible-playbook -i localhost, sample-dotfiles.yml"
     fi
