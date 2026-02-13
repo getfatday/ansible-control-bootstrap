@@ -184,7 +184,7 @@ deploy_dotfiles() {
     # Install requirements if requirements.yml exists
     if [[ -f "$dotfiles_dir/requirements.yml" ]]; then
         info "Installing requirements from requirements.yml..."
-        ansible-galaxy install -r "$dotfiles_dir/requirements.yml"
+        ansible-galaxy install --force -r "$dotfiles_dir/requirements.yml"
     fi
 
     # Run the playbook
