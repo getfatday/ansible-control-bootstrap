@@ -56,6 +56,20 @@ install_on_macos() {
     # Fix zsh directory permissions that Homebrew operations can leave misconfigured
     fix_zsh_permissions
 
+    # GitHub CLI and 1Password CLI: needed before the dotfiles clone (see authenticate_github)
+    if ! command -v gh &>/dev/null; then
+        info "Installing GitHub CLI..."
+        brew install gh
+    else
+        info "GitHub CLI is already installed."
+    fi
+    if ! command -v op &>/dev/null; then
+        info "Installing 1Password CLI..."
+        brew install 1password-cli
+    else
+        info "1Password CLI is already installed."
+    fi
+
     info "Installing Ansible..."
     brew install ansible
 
@@ -167,18 +181,67 @@ EOF
     fi
 }
 
+# Authenticate gh so the dotfiles clone works whether the repo is public or private.
+# Three paths, first match wins:
+#   1. DOTFILES_BOOTSTRAP_TOKEN set (unattended): a fine-grained read-only GitHub
+#      token injected by a VM or Pi bootstrap, fed to `gh auth login --with-token`.
+#   2. OP_SERVICE_ACCOUNT_TOKEN set (unattended): the GitHub token is read from the
+#      1Password item at DOTFILES_BOOTSTRAP_OP_REF (default
+#      "op://Private/GitHub getfatday/token") with `op read`.
+#   3. Otherwise (interactive): `gh auth login --web` unless gh is already logged in
+#      as DOTFILES_GH_USER (default getfatday).
+# Every path ends with `gh auth setup-git`, which makes git use gh as the credential
+# helper for github.com. Skipped with a warning when gh is not installed.
+authenticate_github() {
+    local gh_user="${DOTFILES_GH_USER:-getfatday}"
+    local op_ref="${DOTFILES_BOOTSTRAP_OP_REF:-op://Private/GitHub getfatday/token}"
+
+    if ! command -v gh &>/dev/null; then
+        warning "GitHub CLI not found — skipping GitHub authentication."
+        return 0
+    fi
+
+    if [[ -n "${DOTFILES_BOOTSTRAP_TOKEN:-}" ]]; then
+        info "Authenticating GitHub CLI with DOTFILES_BOOTSTRAP_TOKEN..."
+        printf '%s\n' "$DOTFILES_BOOTSTRAP_TOKEN" | gh auth login --hostname github.com --with-token
+    elif [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+        if ! command -v op &>/dev/null; then
+            warning "OP_SERVICE_ACCOUNT_TOKEN is set but the 1Password CLI is not installed."
+            exit 1
+        fi
+        info "Authenticating GitHub CLI with the token at $op_ref..."
+        op read "$op_ref" | gh auth login --hostname github.com --with-token
+    elif [[ "$(gh api user --jq .login 2>/dev/null)" == "$gh_user" ]]; then
+        info "GitHub CLI is already logged in as $gh_user."
+    else
+        info "Logging in to GitHub as $gh_user (opens a browser)..."
+        gh auth login --hostname github.com --web --git-protocol https
+    fi
+
+    gh auth setup-git --hostname github.com
+}
+
 # Clone and deploy dotfiles if DOTFILES_REPO is set or use default
 deploy_dotfiles() {
-    local dotfiles_repo="${DOTFILES_REPO:-https://github.com/getfatday/dotfiles.git}"
+    local dotfiles_owner="${DOTFILES_GH_USER:-getfatday}"
+    local dotfiles_repo="${DOTFILES_REPO:-https://github.com/$dotfiles_owner/dotfiles.git}"
     local dotfiles_dir="${DOTFILES_DIR:-$HOME/src/dotfiles}"
 
-    if [[ -d "$dotfiles_dir" ]]; then
+    if git -C "$dotfiles_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         info "Dotfiles already cloned at $dotfiles_dir — pulling latest..."
         git -C "$dotfiles_dir" pull
+    elif [[ -e "$dotfiles_dir" ]]; then
+        warning "$dotfiles_dir exists but is not a git repository — refusing to clone over it."
+        exit 1
     else
-        info "Cloning dotfiles from $dotfiles_repo..."
         mkdir -p "$(dirname "$dotfiles_dir")"
-        git clone "$dotfiles_repo" "$dotfiles_dir"
+        if command -v gh &>/dev/null && [[ -z "${DOTFILES_REPO:-}" ]]; then
+            info "Cloning $dotfiles_owner/dotfiles with GitHub CLI..."
+            gh repo clone "$dotfiles_owner/dotfiles" "$dotfiles_dir"
+        else
+            info "Cloning dotfiles from $dotfiles_repo..."
+            git clone "$dotfiles_repo" "$dotfiles_dir"
+        fi
     fi
 
     # Install requirements if requirements.yml exists
@@ -204,7 +267,8 @@ create_sample_playbook
 
 success "Ansible installation complete!"
 
-# Deploy dotfiles
+# Authenticate to GitHub, then deploy dotfiles
+authenticate_github
 deploy_dotfiles
 
 success "Bootstrap complete!"

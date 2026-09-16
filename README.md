@@ -10,6 +10,17 @@ To install Ansible using this script, execute the following command in your term
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/getfatday/ansible-control-bootstrap/main/install_ansible.sh)"
 ```
 
+## GitHub access for the dotfiles clone
+
+On macOS the script installs the GitHub CLI (`gh`) and the 1Password CLI (`op`) right after Homebrew, and logs `gh` in before cloning `getfatday/dotfiles` (override the owner with `DOTFILES_GH_USER`, the target directory with `DOTFILES_DIR`, default `~/src/dotfiles`). A person gets one browser login (`gh auth login --web`). For unattended machines (VMs, a Raspberry Pi) set one of:
+
+- `DOTFILES_BOOTSTRAP_TOKEN` - a fine-grained read-only GitHub token, used directly.
+- `OP_SERVICE_ACCOUNT_TOKEN` - a 1Password service-account token; the GitHub token is read from `DOTFILES_BOOTSTRAP_OP_REF` (default `op://Private/GitHub getfatday/token`).
+
+```bash
+DOTFILES_BOOTSTRAP_TOKEN=github_pat_... /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/getfatday/ansible-control-bootstrap/main/install_ansible.sh)"
+```
+
 ## Supported Operating Systems
 
 - **macOS**
